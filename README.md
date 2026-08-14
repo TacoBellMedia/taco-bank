@@ -1,33 +1,47 @@
-# Taco Bank — Discord Login Version
+# Taco Bank Discord Portal v2
 
-Upload all files in this ZIP to the same GitHub repository.
+This version fixes the GitHub Pages / Cloudflare cross-site-cookie problem by using
+a signed, short-lived session token instead.
 
-## 1. Edit app.js
-Change:
-`const WORKER_URL = "https://YOUR-WORKER.workers.dev";`
+## Before upload
 
-to your actual Cloudflare Worker URL.
+Open `app.js` and replace:
 
-## 2. Cloudflare variables
-Keep these in Cloudflare -> Worker -> Settings -> Variables and Secrets:
-- DISCORD_CLIENT_ID
-- DISCORD_CLIENT_SECRET (Secret)
-- FRONTEND_URL
+`https://taco-bank.fusepointjoe.workers.dev`
 
-FRONTEND_URL should be the exact origin of your GitHub Pages site, for example:
-`https://YOURUSERNAME.github.io`
+with your real Cloudflare Worker URL.
 
-## 3. Discord redirect
-Discord Developer Portal -> OAuth2 -> Redirects:
-`https://YOUR-WORKER.workers.dev/callback`
+## Cloudflare Variables & Secrets
 
-## 4. What this version does
-- Sign in with Discord
-- Redirect back to Taco Bank
-- Portal calls Worker `/me`
-- Shows Discord display name, username, and Discord ID
-- Logout button works
+Set these on the `tacobank` Worker:
 
-## IMPORTANT
-Do not connect the StateCraft withdrawal API yet.
-This version proves Discord identity on the portal, but the session cookie is still a test implementation and must be cryptographically signed before it protects real money.
+- `DISCORD_CLIENT_ID` — regular variable
+- `DISCORD_CLIENT_SECRET` — Secret
+- `FRONTEND_URL` — your full GitHub Pages site URL, such as `https://name.github.io/taco-bank`
+- `SESSION_SECRET` — Secret; use a long random value
+
+Keep `STATECRAFT_API_KEY` private for later. It is not used by this version.
+
+## Discord OAuth redirect
+
+Your Discord OAuth2 Redirect must be exactly:
+
+`https://taco-bank.fusepointjoe.workers.dev/callback`
+
+## New main-menu page
+
+The navigation now contains `SIGN IN`, linking to `signin.html`.
+
+## Login flow
+
+1. User opens SIGN IN.
+2. User signs in through Discord.
+3. Worker validates Discord.
+4. Worker creates an HMAC-signed 24-hour Taco Bank session.
+5. Discord callback redirects to the portal with the token in the URL fragment.
+6. `app.js` immediately stores it in localStorage and removes it from the visible URL.
+7. Portal calls `/me` with `Authorization: Bearer ...`.
+8. Discord identity appears in the bank portal.
+
+Do not connect real StateCraft withdrawals until account linking and transaction
+storage are implemented.
