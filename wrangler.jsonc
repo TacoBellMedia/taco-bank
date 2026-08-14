@@ -1,5 +1,6 @@
 {
-  "name": "taco-bank",
+  "name": "tacobank",
   "main": "worker.js",
-  "compatibility_date": "2026-08-14"
+  "compatibility_date": "2026-08-14",
+  "keep_vars": true
 }

@@ -1,69 +1,70 @@
-// Demo-only frontend until your private backend is connected.
-// Replace with your Cloudflare Worker / Render URL later.
-const BANK_API_URL = "";
+// CHANGE THIS to your actual Cloudflare Worker URL.
+const WORKER_URL = "https://YOUR-WORKER.workers.dev";
 
-const usernameInput = document.getElementById("username");
-const loginBtn = document.getElementById("loginBtn");
-const loginMessage = document.getElementById("loginMessage");
+const loginArea = document.getElementById("loginArea");
 const accountName = document.getElementById("accountName");
-const balanceDisplay = document.getElementById("balance");
-const withdrawAmount = document.getElementById("withdrawAmount");
-const withdrawBtn = document.getElementById("withdrawBtn");
-const withdrawMessage = document.getElementById("withdrawMessage");
+const discordId = document.getElementById("discordId");
+const accountStatus = document.getElementById("accountStatus");
 
-let currentUser = "";
-
-loginBtn.addEventListener("click", async () => {
-  const username = usernameInput.value.trim();
-  if (!username) return loginMessage.textContent = "Please enter your Minecraft username.";
-
-  currentUser = username;
-  accountName.textContent = username;
-
-  if (!BANK_API_URL) {
-    balanceDisplay.textContent = "£500.00";
-    loginMessage.textContent = "Demo mode: backend not connected.";
-    return;
-  }
-
+async function loadDiscordUser() {
   try {
-    loginMessage.textContent = "Loading account...";
-    const r = await fetch(`${BANK_API_URL}/api/account?username=${encodeURIComponent(username)}`);
-    if (!r.ok) throw new Error();
-    const data = await r.json();
-    balanceDisplay.textContent = `£${Number(data.balance).toFixed(2)}`;
-    loginMessage.textContent = "Account loaded.";
-  } catch {
-    loginMessage.textContent = "Could not load account.";
-  }
-});
-
-withdrawBtn.addEventListener("click", async () => {
-  const amount = Number(withdrawAmount.value);
-  if (!currentUser) return withdrawMessage.textContent = "Sign in first.";
-  if (!Number.isFinite(amount) || amount <= 0) return withdrawMessage.textContent = "Enter a valid amount.";
-
-  if (!BANK_API_URL) {
-    withdrawMessage.textContent = `Demo only: £${amount.toFixed(2)} was NOT actually withdrawn.`;
-    return;
-  }
-
-  try {
-    withdrawBtn.disabled = true;
-    withdrawMessage.textContent = "Submitting withdrawal...";
-    const r = await fetch(`${BANK_API_URL}/api/withdraw`, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({username: currentUser, amount})
+    const response = await fetch(`${WORKER_URL}/me`, {
+      credentials: "include"
     });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || "Withdrawal failed.");
-    balanceDisplay.textContent = `£${Number(data.balance).toFixed(2)}`;
-    withdrawMessage.textContent = "Withdrawal submitted.";
-    withdrawAmount.value = "";
-  } catch (e) {
-    withdrawMessage.textContent = e.message;
-  } finally {
-    withdrawBtn.disabled = false;
+
+    const data = await response.json();
+
+    if (data.loggedIn) {
+      const display = data.user.global_name || data.user.username;
+
+      loginArea.innerHTML = `
+        <div class="signed-in">SIGNED IN WITH DISCORD</div>
+        <p><strong>${escapeHtml(display)}</strong><br><small>@${escapeHtml(data.user.username)}</small></p>
+        <button class="logout-button" id="logoutBtn">Log Out</button>
+      `;
+
+      accountName.textContent = display;
+      discordId.textContent = data.user.id;
+      accountStatus.textContent = "ACTIVE";
+      accountStatus.className = "signed-in";
+
+      document.getElementById("logoutBtn").addEventListener("click", logoutDiscord);
+    } else {
+      showLoggedOut();
+    }
+  } catch (err) {
+    console.error(err);
+    loginArea.innerHTML = `<p>Could not contact Taco Bank authentication.</p>
+      <a class="discord-button" href="${WORKER_URL}/login">Sign in with Discord</a>`;
   }
-});
+}
+
+function showLoggedOut() {
+  loginArea.innerHTML = `
+    <p>Use your Discord account to access Taco Bank.</p>
+    <a class="discord-button" href="${WORKER_URL}/login">Sign in with Discord</a>
+  `;
+  accountName.textContent = "Not signed in";
+  discordId.textContent = "—";
+  accountStatus.textContent = "SIGNED OUT";
+  accountStatus.className = "";
+}
+
+async function logoutDiscord() {
+  await fetch(`${WORKER_URL}/logout`, {
+    method: "POST",
+    credentials: "include"
+  });
+  location.reload();
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+loadDiscordUser();
