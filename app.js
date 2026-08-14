@@ -1,5 +1,5 @@
 // CHANGE THIS to your actual Cloudflare Worker URL.
-const WORKER_URL = "https://YOUR-WORKER.workers.dev";
+const WORKER_URL = "https://taco-bank.fusepointjoe.workers.dev/";
 
 const loginArea = document.getElementById("loginArea");
 const accountName = document.getElementById("accountName");
