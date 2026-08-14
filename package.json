@@ -1,6 +1,6 @@
 {
-  "name": "taco-bank",
-  "version": "2.0.0",
+  "name": "taco-watch",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "dev": "wrangler dev",

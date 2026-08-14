@@ -1,24 +1,130 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Taco Bank</title><link rel="stylesheet" href="styles.css"></head><body>
-<div class="top-strip"><span>TACO BANK ONLINE</span><span class="top-links"><a href="index.html">Home</a> | <a href="signin.html">Sign In</a> | <a href="index.html#about">About Us</a></span></div>
-<header class="site-header"><div class="brand"><img src="taco-bell-logo.webp" alt="Taco Bank logo" class="logo"><div><h1>TACO BANK</h1><p class="tagline">Reliable Banking for the StateCraft Economy</p></div></div></header>
-<nav class="main-nav">
-    <a href="index.html">HOME</a>
-    <a href="signin.html">SIGN IN</a>
-    <a href="index.html#account">MY ACCOUNT</a>
-    <a href="index.html#deposit">DEPOSIT</a>
-    <a href="index.html#withdraw">WITHDRAW</a>
-    <a href="index.html#about">ABOUT</a>
-  </nav>
-<main class="page-shell">
-<section class="hero"><div><h2>Welcome to Taco Bank</h2><p>A simple StateCraft banking service for storing, tracking, and withdrawing your in-game funds.</p><p class="old-web-note">Serving the community with dependable online banking.</p></div>
-<aside class="quick-box"><div class="quick-title">QUICK ACCOUNT ACCESS</div><div id="loginArea" class="login-area">Checking Discord login...</div></aside></section>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taco Watch — StateCraft Note Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="topbar">
+    <div><strong>TACO WATCH</strong> — StateCraft Monetary Intelligence</div>
+    <div id="updated">Last update: --</div>
+  </div>
 
-<section class="three-column">
-<article class="panel" id="account"><div class="panel-title">ACCOUNT SUMMARY</div><div class="panel-content"><p class="small-label">AVAILABLE BALANCE</p><div class="balance" id="balance">£0.00</div><table class="account-table"><tr><td>Account Holder:</td><td id="accountName">Not signed in</td></tr><tr><td>Discord ID:</td><td id="discordId">—</td></tr><tr><td>Account Type:</td><td>Standard Checking</td></tr><tr><td>Status:</td><td><span id="accountStatus">SIGNED OUT</span></td></tr></table></div></article>
-<article class="panel" id="deposit"><div class="panel-title">MAKE A DEPOSIT</div><div class="panel-content"><p>Send money in-game to the Taco Bank account.</p><div class="command-box">/pay TacoBank &lt;amount&gt;</div><p class="fine-print">Automatic deposit crediting comes next.</p></div></article>
-<article class="panel" id="withdraw"><div class="panel-title">WITHDRAW FUNDS</div><div class="panel-content"><label for="withdrawAmount">Withdrawal Amount</label><div class="money-field"><span>£</span><input id="withdrawAmount" type="number" min="1" placeholder="100"></div><button class="withdraw-button" disabled>Submit Withdrawal</button><p class="status-line">Withdrawals remain disabled until the StateCraft payout API is connected.</p></div></article>
-</section>
-<section class="news-section"><div class="section-heading">TACO BANK NEWS & INFORMATION</div><div class="news-grid"><article><h3>Discord Sign-In</h3><p>Use the new SIGN IN page in the main menu to access your bank account.</p></article><article><h3>StateCraft Deposits</h3><p>Deposits will be tied to your authenticated account after Minecraft linking is added.</p></article><article id="about"><h3>About Taco Bank</h3><p>An independent player-run StateCraft banking service.</p></article></div></section>
-</main>
-<footer><p>© 2026 Taco Bank. All rights reserved.</p><p class="footer-small">Independent player service; not an official StateCraft institution.</p></footer>
-<script src="app.js"></script></body></html>
+  <header class="masthead">
+    <div class="mark">TW</div>
+    <div>
+      <h1>Taco Watch</h1>
+      <p>Estimated physical-note circulation from StateCraft transaction activity</p>
+    </div>
+  </header>
+
+  <nav>
+    <a href="#overview">OVERVIEW</a>
+    <a href="#holders">NOTE HOLDERS</a>
+    <a href="#activity">RECENT ACTIVITY</a>
+    <a href="#method">METHODOLOGY</a>
+  </nav>
+
+  <main>
+    <section class="notice">
+      <strong>Estimate only.</strong>
+      Taco Watch can only infer note ownership from transactions visible to the configured Treasury account.
+      Hand-to-hand transfers, chest storage, dropped items, and other off-market movement are not visible.
+    </section>
+
+    <section id="overview">
+      <div class="section-title">MARKET OVERVIEW</div>
+      <div class="cards">
+        <article class="card">
+          <span>Estimated Notes Tracked</span>
+          <strong id="trackedValue">£0.00</strong>
+        </article>
+        <article class="card">
+          <span>Tracked Players</span>
+          <strong id="playerCount">0</strong>
+        </article>
+        <article class="card">
+          <span>Matching Transactions</span>
+          <strong id="tradeCount">0</strong>
+        </article>
+        <article class="card">
+          <span>Data Confidence</span>
+          <strong id="confidence">LOW</strong>
+        </article>
+      </div>
+    </section>
+
+    <section id="holders" class="box">
+      <div class="section-title">ESTIMATED NOTE HOLDERS</div>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search player...">
+        <button id="refresh">Refresh Data</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Player</th>
+              <th>Estimated Notes</th>
+              <th>Acquired</th>
+              <th>Disposed</th>
+              <th>Transactions</th>
+              <th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody id="holdersBody">
+            <tr><td colspan="7">Loading StateCraft data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="activity" class="box">
+      <div class="section-title">RECENT NOTE ACTIVITY</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Transaction</th>
+              <th>Player</th>
+              <th>Direction</th>
+              <th>Estimated Note Value</th>
+              <th>Memo / Description</th>
+            </tr>
+          </thead>
+          <tbody id="activityBody">
+            <tr><td colspan="5">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="method" class="box method">
+      <div class="section-title">HOW THE ESTIMATE WORKS</div>
+      <p>
+        The Cloudflare Worker reads the configured StateCraft Treasury account's transaction history and filters
+        transactions whose memo/description contains the configured note marker. It then estimates each counterparty's
+        physical-note position from the direction and value of those transactions.
+      </p>
+      <p>
+        This is deliberately labeled an estimate. It cannot observe notes moved without a Treasury-visible transaction,
+        so the figures should be used as market intelligence rather than an authoritative bank balance.
+      </p>
+      <p class="small">
+        Backend: <code>https://young-lab-523e.fusepointjoe.workers.dev</code>
+      </p>
+    </section>
+
+    <section id="errorBox" class="error-box" hidden></section>
+  </main>
+
+  <footer>
+    <strong>Taco Watch</strong> · Independent StateCraft market analysis · Not an official StateCraft service
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

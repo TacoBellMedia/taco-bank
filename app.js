@@ -1,101 +1,85 @@
-// IMPORTANT: replace with your real Cloudflare Worker URL, no trailing slash.
-const WORKER_URL = "https://taco-bank.fusepointjoe.workers.dev";
-const TOKEN_KEY = "taco_bank_session";
+const API = "https://young-lab-523e.fusepointjoe.workers.dev";
 
-function escapeHtml(value) {
-  return String(value ?? "")
+let currentData = null;
+
+const money = n => new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+  minimumFractionDigits: 2
+}).format(Number(n || 0));
+
+function esc(v) {
+  return String(v ?? "")
     .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
     .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
-// Discord callback returns to the frontend with #auth=SIGNED_TOKEN.
-// Fragments are not sent to GitHub Pages.
-(function captureLoginToken() {
-  const hash = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : location.hash);
-  const token = hash.get("auth");
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
-    history.replaceState(null, "", location.pathname + location.search);
-  }
-})();
-
-function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+function confClass(v) {
+  v = String(v || "").toLowerCase();
+  if (v === "high") return "conf-high";
+  if (v === "medium") return "conf-medium";
+  return "conf-low";
 }
 
-async function getMe() {
-  const token = getToken();
-  if (!token) return {loggedIn:false};
-
-  const response = await fetch(`${WORKER_URL}/me`, {
-    headers: { "Authorization": `Bearer ${token}` }
-  });
-
-  if (response.status === 401) {
-    localStorage.removeItem(TOKEN_KEY);
-    return {loggedIn:false};
-  }
-  if (!response.ok) throw new Error("Authentication service unavailable.");
-  return await response.json();
-}
-
-async function renderAuth() {
-  const loginArea = document.getElementById("loginArea");
-  const signinStatus = document.getElementById("signinStatus");
-  const loginButton = document.getElementById("discordLoginButton");
-  const accountName = document.getElementById("accountName");
-  const discordId = document.getElementById("discordId");
-  const accountStatus = document.getElementById("accountStatus");
-
-  if (loginButton) loginButton.href = `https://taco-bank.fusepointjoe.workers.dev/login`;
+async function load() {
+  const error = document.getElementById("errorBox");
+  error.hidden = true;
+  document.getElementById("holdersBody").innerHTML = '<tr><td colspan="7">Loading StateCraft data...</td></tr>';
+  document.getElementById("activityBody").innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
 
   try {
-    const data = await getMe();
+    const res = await fetch(`${API}/api/notes`, { cache: "no-store" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Backend request failed.");
 
-    if (data.loggedIn) {
-      const display = data.user.global_name || data.user.username;
-
-      if (loginArea) {
-        loginArea.innerHTML = `<div class="signed-in">SIGNED IN WITH DISCORD</div>
-          <p><strong>${escapeHtml(display)}</strong><br><small>@${escapeHtml(data.user.username)}</small></p>
-          <button class="logout-button" id="logoutBtn">Log Out</button>`;
-        document.getElementById("logoutBtn").onclick = logout;
-      }
-
-      if (signinStatus) {
-        signinStatus.innerHTML = `<div class="signed-in">You are signed in.</div>
-          <p><strong>${escapeHtml(display)}</strong><br><small>@${escapeHtml(data.user.username)}</small></p>
-          <a class="discord-button" href="index.html#account">Go to My Account</a>
-          <br><br><button class="logout-button" id="logoutBtn2">Log Out</button>`;
-        document.getElementById("logoutBtn2").onclick = logout;
-      }
-
-      if (accountName) accountName.textContent = display;
-      if (discordId) discordId.textContent = data.user.id;
-      if (accountStatus) {
-        accountStatus.textContent = "ACTIVE";
-        accountStatus.className = "signed-in";
-      }
-      return;
-    }
-
-    if (loginArea) {
-      loginArea.innerHTML = `<p>Use Discord to access your account.</p>
-        <a class="discord-button" href="signin.html">Sign in with Discord</a>`;
-    }
-    if (signinStatus) {
-      signinStatus.innerHTML = `<a class="discord-button" href="${WORKER_URL}/login">Sign in with Discord</a>`;
-    }
+    currentData = data;
+    document.getElementById("trackedValue").textContent = money(data.summary.trackedValue);
+    document.getElementById("playerCount").textContent = data.summary.players;
+    document.getElementById("tradeCount").textContent = data.summary.matchingTransactions;
+    document.getElementById("confidence").textContent = String(data.summary.confidence || "LOW").toUpperCase();
+    document.getElementById("updated").textContent = `Last update: ${new Date(data.generatedAt).toLocaleString()}`;
+    renderHolders(data.holders);
+    renderActivity(data.activity);
   } catch (e) {
-    console.error(e);
-    if (loginArea) loginArea.innerHTML = `<p>Authentication service could not be reached.</p><a class="discord-button" href="signin.html">Sign In</a>`;
-    if (signinStatus) signinStatus.innerHTML = `<p>Authentication service could not be reached.</p>`;
+    error.hidden = false;
+    error.textContent =
+      "Taco Watch could not load the Treasury data.\n\n" +
+      e.message +
+      "\n\nCheck the Worker variables listed in README.md.";
+    document.getElementById("holdersBody").innerHTML = '<tr><td colspan="7">No data available.</td></tr>';
+    document.getElementById("activityBody").innerHTML = '<tr><td colspan="5">No data available.</td></tr>';
   }
 }
 
-function logout() {
-  localStorage.removeItem(TOKEN_KEY);
-  location.href = "signin.html";
+function renderHolders(holders) {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const rows = (holders || []).filter(x => String(x.player).toLowerCase().includes(q));
+  document.getElementById("holdersBody").innerHTML = rows.length ? rows.map((x,i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td><strong>${esc(x.player)}</strong></td>
+      <td class="${x.estimated >= 0 ? "positive" : "negative"}">${money(x.estimated)}</td>
+      <td>${money(x.acquired)}</td>
+      <td>${money(x.disposed)}</td>
+      <td>${x.transactions}</td>
+      <td class="${confClass(x.confidence)}">${esc(String(x.confidence).toUpperCase())}</td>
+    </tr>`).join("") : '<tr><td colspan="7">No matching players.</td></tr>';
 }
 
-renderAuth();
+function renderActivity(activity) {
+  document.getElementById("activityBody").innerHTML = (activity || []).length ? activity.map(x => `
+    <tr>
+      <td>${esc(x.id)}</td>
+      <td><strong>${esc(x.player)}</strong></td>
+      <td>${esc(x.direction)}</td>
+      <td>${money(x.noteValue)}</td>
+      <td>${esc(x.memo)}</td>
+    </tr>`).join("") : '<tr><td colspan="5">No matching note transactions found.</td></tr>';
+}
+
+document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("search").addEventListener("input", () => {
+  if (currentData) renderHolders(currentData.holders);
+});
+
+load();

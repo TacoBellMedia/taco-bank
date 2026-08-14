@@ -1,154 +1,292 @@
+const TREASURY_BASE = "https://api.mcstatecraft.com/economy/api/v1";
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const cors = corsHeaders(env);
 
-    if (request.method === "OPTIONS") return new Response(null, {headers:cors});
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: cors() });
+    }
 
     if (url.pathname === "/") {
-      return html('<h1>Taco Bank Authentication</h1><p><a href="/login">Sign in with Discord</a></p>');
-    }
-
-    if (url.pathname === "/login") {
-      if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET || !env.FRONTEND_URL || !env.SESSION_SECRET) {
-        return new Response("Worker variables are incomplete.", {status:500});
-      }
-
-      const state = crypto.randomUUID();
-      const redirectUri = `${url.origin}/callback`;
-      const auth = new URL("https://discord.com/oauth2/authorize");
-      auth.searchParams.set("client_id", env.DISCORD_CLIENT_ID);
-      auth.searchParams.set("response_type","code");
-      auth.searchParams.set("redirect_uri",redirectUri);
-      auth.searchParams.set("scope","identify");
-      auth.searchParams.set("state",state);
-
-      const headers = new Headers({Location:auth.toString()});
-      headers.append("Set-Cookie",`oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`);
-      return new Response(null,{status:302,headers});
-    }
-
-    if (url.pathname === "/callback") {
-      const code = url.searchParams.get("code");
-      const returnedState = url.searchParams.get("state");
-      const cookies = parseCookies(request.headers.get("Cookie") || "");
-      if (!code || !returnedState || returnedState !== cookies.oauth_state) {
-        return new Response("Invalid Discord login. Please try again.", {status:400});
-      }
-
-      const redirectUri = `${url.origin}/callback`;
-      const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
-        method:"POST",
-        headers:{"Content-Type":"application/x-www-form-urlencoded"},
-        body:new URLSearchParams({
-          client_id:env.DISCORD_CLIENT_ID,
-          client_secret:env.DISCORD_CLIENT_SECRET,
-          grant_type:"authorization_code",
-          code,
-          redirect_uri:redirectUri
-        })
-      });
-      if (!tokenResponse.ok) return new Response("Discord token exchange failed.",{status:500});
-
-      const discordToken = await tokenResponse.json();
-      const userResponse = await fetch("https://discord.com/api/v10/users/@me", {
-        headers:{Authorization:`Bearer ${discordToken.access_token}`}
-      });
-      if (!userResponse.ok) return new Response("Could not read Discord account.",{status:500});
-      const user = await userResponse.json();
-
-      const now = Math.floor(Date.now()/1000);
-      const payload = {
-        sub:user.id,
-        username:user.username,
-        global_name:user.global_name || null,
-        iat:now,
-        exp:now + 86400
-      };
-      const sessionToken = await signToken(payload, env.SESSION_SECRET);
-
-      const frontend = env.FRONTEND_URL.replace(/\/$/, "");
-      const location = `${frontend}/#auth=${encodeURIComponent(sessionToken)}`;
-      return Response.redirect(location, 302);
-    }
-
-    if (url.pathname === "/me") {
-      const auth = request.headers.get("Authorization") || "";
-      if (!auth.startsWith("Bearer ")) return json({loggedIn:false},401,cors);
-
-      const token = auth.slice(7);
-      const payload = await verifyToken(token, env.SESSION_SECRET);
-      if (!payload) return json({loggedIn:false},401,cors);
-
       return json({
-        loggedIn:true,
-        user:{
-          id:payload.sub,
-          username:payload.username,
-          global_name:payload.global_name
-        }
-      },200,cors);
+        service: "Taco Watch",
+        ok: true,
+        endpoint: "/api/notes"
+      });
     }
 
-    return new Response("Not Found",{status:404});
+    if (url.pathname === "/api/notes") {
+      try {
+        validateEnv(env);
+
+        const pageLimit = clamp(Number(env.TREASURY_PAGE_LIMIT || 500), 1, 1000);
+        const pageCount = clamp(Number(env.TREASURY_PAGES || 3), 1, 20);
+
+        const all = [];
+        for (let page = 1; page <= pageCount; page++) {
+          const response = await treasuryFetch(
+            `/accounts/${encodeURIComponent(env.TREASURY_ACCOUNT_ID)}/transactions?page=${page}&limit=${pageLimit}`,
+            env.TREASURY_API_KEY
+          );
+
+          const rows = extractRows(response);
+          all.push(...rows);
+
+          if (rows.length < pageLimit) break;
+        }
+
+        const marker = String(env.NOTE_MARKER || "note").toLowerCase();
+        const faceValue = positiveNumber(env.NOTE_FACE_VALUE, 100);
+        const shopPrice = positiveNumber(env.NOTE_SHOP_PRICE, faceValue);
+
+        const matches = all
+          .map(normalizeTransaction)
+          .filter(Boolean)
+          .filter(tx => `${tx.memo} ${tx.type} ${tx.description}`.toLowerCase().includes(marker));
+
+        const holders = new Map();
+        const activity = [];
+
+        for (const tx of matches) {
+          const player = tx.counterparty || tx.player || "Unknown";
+          if (player === "Unknown") continue;
+
+          // If the API exposes item quantity, use it. Otherwise infer quantity from
+          // Treasury money moved divided by the configured ChestShop price per note.
+          const quantity = tx.quantity > 0
+            ? tx.quantity
+            : Math.max(1, Math.round(Math.abs(tx.amount) / shopPrice));
+
+          const noteValue = quantity * faceValue;
+
+          // Perspective is the configured Treasury account:
+          // money received by treasury => player bought notes => player acquired notes
+          // money sent by treasury     => player sold/redeemed notes => player disposed notes
+          const acquired = tx.direction === "IN";
+          const h = holders.get(player) || {
+            player,
+            acquired: 0,
+            disposed: 0,
+            estimated: 0,
+            transactions: 0,
+            confidencePoints: 0
+          };
+
+          if (acquired) {
+            h.acquired += noteValue;
+            h.estimated += noteValue;
+          } else {
+            h.disposed += noteValue;
+            h.estimated -= noteValue;
+          }
+
+          h.transactions += 1;
+          h.confidencePoints += tx.quantity > 0 ? 3 : (tx.amount > 0 ? 2 : 1);
+          holders.set(player, h);
+
+          activity.push({
+            id: tx.id,
+            player,
+            direction: acquired ? "ACQUIRED NOTES" : "DISPOSED NOTES",
+            noteValue,
+            memo: tx.memo || tx.description || tx.type || "(no memo)",
+            timestamp: tx.timestamp
+          });
+        }
+
+        const holderList = [...holders.values()]
+          .map(h => ({
+            player: h.player,
+            acquired: round2(h.acquired),
+            disposed: round2(h.disposed),
+            estimated: round2(h.estimated),
+            transactions: h.transactions,
+            confidence: h.confidencePoints >= 12 ? "high" : h.confidencePoints >= 5 ? "medium" : "low"
+          }))
+          .sort((a,b) => b.estimated - a.estimated);
+
+        activity.sort((a,b) => String(b.timestamp || "").localeCompare(String(a.timestamp || "")));
+
+        const trackedValue = holderList.reduce((s,h) => s + Math.max(0,h.estimated), 0);
+        const globalConfidence =
+          matches.length >= 30 ? "high" :
+          matches.length >= 8 ? "medium" : "low";
+
+        return json({
+          generatedAt: new Date().toISOString(),
+          configuration: {
+            marker: env.NOTE_MARKER,
+            faceValue,
+            shopPrice,
+            accountId: env.TREASURY_ACCOUNT_ID
+          },
+          summary: {
+            trackedValue: round2(trackedValue),
+            players: holderList.length,
+            matchingTransactions: matches.length,
+            confidence: globalConfidence
+          },
+          holders: holderList,
+          activity: activity.slice(0, 50)
+        });
+      } catch (err) {
+        return json({ error: String(err.message || err) }, 500);
+      }
+    }
+
+    return new Response("Not Found", { status: 404, headers: cors() });
   }
 };
 
-function corsHeaders(env) {
-  let origin = "";
-  try { origin = new URL(env.FRONTEND_URL).origin; } catch {}
+function validateEnv(env) {
+  const missing = [];
+  for (const key of ["TREASURY_API_KEY","TREASURY_ACCOUNT_ID","NOTE_MARKER"]) {
+    if (!env[key]) missing.push(key);
+  }
+  if (missing.length) {
+    throw new Error(`Missing Cloudflare variable(s): ${missing.join(", ")}`);
+  }
+}
+
+async function treasuryFetch(path, token) {
+  const res = await fetch(`${TREASURY_BASE}${path}`, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Accept": "application/json"
+    }
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`StateCraft Treasury API ${res.status}: ${text.slice(0,300)}`);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("Treasury API returned non-JSON data.");
+  }
+}
+
+function extractRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  for (const key of ["transactions","items","data","content","results"]) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+  }
+  // Some APIs nest page content one level down.
+  for (const value of Object.values(payload || {})) {
+    if (value && typeof value === "object") {
+      for (const key of ["transactions","items","data","content","results"]) {
+        if (Array.isArray(value[key])) return value[key];
+      }
+    }
+  }
+  return [];
+}
+
+function normalizeTransaction(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  const amount = numberFrom(
+    raw.amount, raw.value, raw.total, raw.money, raw.postingAmount,
+    raw.transactionAmount
+  );
+
+  const memo = textFrom(raw.memo, raw.message, raw.note, raw.reason, raw.description, raw.details);
+  const description = textFrom(raw.description, raw.details, raw.itemName, raw.item, raw.material);
+  const type = textFrom(raw.type, raw.transactionType, raw.kind, raw.category);
+
+  let direction = String(textFrom(raw.direction, raw.flow, raw.side)).toUpperCase();
+  if (!["IN","OUT"].includes(direction)) {
+    if (raw.incoming === true || raw.credit === true || amount > 0) direction = "IN";
+    else direction = "OUT";
+  }
+
+  const counterparty = textFrom(
+    raw.counterpartyName,
+    raw.counterparty,
+    raw.playerName,
+    raw.initiatorName,
+    raw.actorName,
+    raw.senderName,
+    raw.recipientName,
+    raw.fromName,
+    raw.toName,
+    raw.username
+  );
+
+  const quantity = numberFrom(
+    raw.quantity, raw.qty, raw.itemQuantity, raw.itemCount, raw.count
+  );
+
   return {
-    "Access-Control-Allow-Origin":origin,
-    "Access-Control-Allow-Headers":"Authorization, Content-Type",
-    "Access-Control-Allow-Methods":"GET, POST, OPTIONS",
-    "Vary":"Origin"
+    id: textFrom(raw.txnId, raw.transactionId, raw.id, raw.uuid) || "?",
+    amount: Math.abs(amount),
+    direction,
+    counterparty,
+    player: counterparty,
+    quantity: Math.abs(quantity),
+    memo,
+    description,
+    type,
+    timestamp: textFrom(raw.timestamp, raw.createdAt, raw.settledAt, raw.date, raw.time)
   };
 }
 
-async function signToken(payload, secret) {
-  const body = base64url(JSON.stringify(payload));
-  const sig = await hmac(body, secret);
-  return `${body}.${sig}`;
+function textFrom(...vals) {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number") return String(v);
+    if (v && typeof v === "object") {
+      for (const key of ["name","username","displayName","label"]) {
+        if (typeof v[key] === "string" && v[key].trim()) return v[key].trim();
+      }
+    }
+  }
+  return "";
 }
 
-async function verifyToken(token, secret) {
-  try {
-    const [body,sig] = token.split(".");
-    if (!body || !sig) return null;
-    const expected = await hmac(body, secret);
-    if (!timingSafeEqual(sig, expected)) return null;
-    const payload = JSON.parse(fromBase64url(body));
-    if (!payload.exp || payload.exp < Math.floor(Date.now()/1000)) return null;
-    return payload;
-  } catch { return null; }
+function numberFrom(...vals) {
+  for (const v of vals) {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string") {
+      const n = Number(v.replace(/[£,$\s]/g,""));
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return 0;
 }
 
-async function hmac(data, secret) {
-  const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(secret),
-    {name:"HMAC",hash:"SHA-256"}, false, ["sign"]
-  );
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
-  return bytesToBase64url(new Uint8Array(signature));
+function positiveNumber(v, fallback) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-function timingSafeEqual(a,b) {
-  if (a.length !== b.length) return false;
-  let diff=0;
-  for (let i=0;i<a.length;i++) diff |= a.charCodeAt(i)^b.charCodeAt(i);
-  return diff===0;
+function round2(n) {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 }
-function base64url(s){return bytesToBase64url(new TextEncoder().encode(s))}
-function bytesToBase64url(bytes){
-  let bin=""; for(const b of bytes) bin+=String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+
+function clamp(n,min,max) {
+  if (!Number.isFinite(n)) return min;
+  return Math.min(max,Math.max(min,Math.floor(n)));
 }
-function fromBase64url(s){
-  let b=s.replace(/-/g,"+").replace(/_/g,"/"); while(b.length%4)b+="=";
-  const bin=atob(b); return new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0)));
+
+function cors() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
+  };
 }
-function parseCookies(header){
-  const out={}; for(const p of header.split(";")){const i=p.indexOf("=");if(i<0)continue;out[p.slice(0,i).trim()]=p.slice(i+1).trim()} return out;
+
+function json(data, status=200) {
+  return new Response(JSON.stringify(data, null, 2), {
+    status,
+    headers: {
+      ...cors(),
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
+    }
+  });
 }
-function json(data,status,headers){return new Response(JSON.stringify(data),{status,headers:{...headers,"Content-Type":"application/json"}})}
-function html(s){return new Response(s,{headers:{"Content-Type":"text/html;charset=UTF-8"}})}
