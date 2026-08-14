@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taco Bank</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="top-strip">
+    <span>TACO BANK ONLINE</span>
+    <span class="top-links"><a href="#home">Home</a> | <a href="#account">Accounts</a> | <a href="#about">About Us</a></span>
+  </div>
+
+  <header class="site-header" id="home">
+    <div class="brand">
+      <img src="taco-bell-logo.webp" alt="Taco Bank logo" class="logo">
+      <div>
+        <h1>TACO BANK</h1>
+        <p class="tagline">Reliable Banking for the StateCraft Economy</p>
+      </div>
+    </div>
+  </header>
+
+  <nav class="main-nav">
+    <a href="#home">HOME</a>
+    <a href="#account">MY ACCOUNT</a>
+    <a href="#deposit">DEPOSIT</a>
+    <a href="#withdraw">WITHDRAW</a>
+    <a href="#about">ABOUT</a>
+  </nav>
+
+  <main class="page-shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <h2>Welcome to Taco Bank</h2>
+        <p>A simple StateCraft banking service for storing, tracking, and withdrawing your in-game funds.</p>
+        <p class="old-web-note">Serving the community with dependable online banking.</p>
+      </div>
+
+      <aside class="quick-box">
+        <div class="quick-title">QUICK ACCOUNT ACCESS</div>
+        <label for="username">Minecraft Username</label>
+        <input id="username" type="text" placeholder="Tacoman1619">
+        <button id="loginBtn">View My Account</button>
+        <p id="loginMessage" class="status-line"></p>
+      </aside>
+    </section>
+
+    <section class="three-column">
+      <article class="panel" id="account">
+        <div class="panel-title">ACCOUNT SUMMARY</div>
+        <div class="panel-content">
+          <p class="small-label">AVAILABLE BALANCE</p>
+          <div class="balance" id="balance">£0.00</div>
+          <table class="account-table">
+            <tr><td>Account Holder:</td><td id="accountName">Not signed in</td></tr>
+            <tr><td>Account Type:</td><td>Standard Checking</td></tr>
+            <tr><td>Status:</td><td><span class="status-active">ACTIVE</span></td></tr>
+          </table>
+        </div>
+      </article>
+
+      <article class="panel" id="deposit">
+        <div class="panel-title">MAKE A DEPOSIT</div>
+        <div class="panel-content">
+          <p>Send money in-game to the Taco Bank account.</p>
+          <div class="command-box">/pay TacoBank &lt;amount&gt;</div>
+          <p class="fine-print">Deposits will appear after they are confirmed by the bank system.</p>
+        </div>
+      </article>
+
+      <article class="panel" id="withdraw">
+        <div class="panel-title">WITHDRAW FUNDS</div>
+        <div class="panel-content">
+          <label for="withdrawAmount">Withdrawal Amount</label>
+          <div class="money-field"><span>£</span><input id="withdrawAmount" type="number" min="1" step="1" placeholder="100"></div>
+          <button id="withdrawBtn" class="withdraw-button">Submit Withdrawal</button>
+          <p id="withdrawMessage" class="status-line"></p>
+        </div>
+      </article>
+    </section>
+
+    <section class="news-section">
+      <div class="section-heading">TACO BANK NEWS & INFORMATION</div>
+      <div class="news-grid">
+        <article><h3>Online Banking</h3><p>Taco Bank provides simple account access from any modern web browser.</p><a href="#account">Account Information &gt;&gt;</a></article>
+        <article><h3>StateCraft Deposits</h3><p>Make deposits using the in-game payment system and manage your balance here.</p><a href="#deposit">Deposit Instructions &gt;&gt;</a></article>
+        <article id="about"><h3>About Taco Bank</h3><p>Built for players who want a straightforward place to manage StateCraft funds.</p><a href="#home">Learn More &gt;&gt;</a></article>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div><a href="#home">Home</a> | <a href="#account">Account Services</a> | <a href="#about">About Taco Bank</a></div>
+    <p>© 2026 Taco Bank. All rights reserved.</p>
+    <p class="footer-small">Taco Bank is an independent StateCraft player service and is not an official StateCraft institution.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
