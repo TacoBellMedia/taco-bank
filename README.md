@@ -1,16 +1,16 @@
-# Taco Bank Frontend
+# Taco Bank Discord Worker
 
-GitHub Pages-ready old-school corporate banking frontend.
+Upload these files to the GitHub repository connected to your Cloudflare Worker.
 
-## GitHub Pages
-Upload all files in this folder to a GitHub repository, then:
-Settings -> Pages -> Deploy from a branch -> main -> / (root)
+In Cloudflare Variables and Secrets add:
+- DISCORD_CLIENT_ID
+- DISCORD_CLIENT_SECRET (Secret)
+- FRONTEND_URL
 
-## Backend
-The site runs in demo mode until you edit `app.js`:
+In Discord Developer Portal -> OAuth2 -> Redirects add:
+https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/callback
 
-```js
-const BANK_API_URL = "https://your-private-backend.example";
-```
+Then test:
+https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev/login
 
-Never put your StateCraft API key in this repo or any frontend JavaScript.
+IMPORTANT: This is the Discord-login test stage only. Do not connect real StateCraft withdrawals yet; the login session must be hardened first.
