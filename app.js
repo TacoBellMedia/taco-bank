@@ -47,7 +47,7 @@ async function renderAuth() {
   const discordId = document.getElementById("discordId");
   const accountStatus = document.getElementById("accountStatus");
 
-  if (loginButton) loginButton.href = `${WORKER_URL}login`;
+  if (loginButton) loginButton.href = `https://taco-bank.fusepointjoe.workers.dev/login`;
 
   try {
     const data = await getMe();
